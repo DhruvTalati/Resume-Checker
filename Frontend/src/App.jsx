@@ -1,9 +1,8 @@
-const App = () => {
-  return (
-    <div>
-      
-    </div>
-  )
-}
+import { RouterProvider } from "react-router";
+import { router } from "./app.routes.jsx";
 
-export default App
+const App = () => {
+  return <RouterProvider router={router}/>;
+};
+
+export default App;
