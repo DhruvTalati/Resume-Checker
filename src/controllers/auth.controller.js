@@ -129,6 +129,15 @@ async function logoutUserController(req, res) {
   }
 }
 
+/**
+ * @name grtMeController
+ * @description Get the current logged in user details!!
+ * @access private
+ */
+async function getMeController(req, res) {
+  const user = await userModel.findById(req.user.id);
+}
+
 module.exports = {
   registerUserController,
   loginUserController,
