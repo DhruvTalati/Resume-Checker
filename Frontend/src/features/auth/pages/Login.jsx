@@ -1,23 +1,28 @@
 import "../auth.form.scss";
 import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 const Login = () => {
   const { loading, handleLogin } = useAuth();
+  const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    handleLogin({ email, password });
+    await handleLogin({ email, password });
+    navigate("/");
   };
 
   if (loading) {
     return (
       <main>
-        <h1>Loading......</h1>
+        <div className="loader-container">
+          <div className="loader"></div>
+          <p>Please wait...</p>
+        </div>
       </main>
     );
   }
@@ -25,39 +30,47 @@ const Login = () => {
   return (
     <main>
       <div className="form-container">
-        <h1>Login</h1>
+        <div className="form-header">
+          <h1>Resume Checker</h1>
+          <p>Login to analyze and improve your resume</p>
+        </div>
+
         <form onSubmit={handleSubmit}>
           <div className="input-group">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">Email Address</label>
             <input
-              onChange={(e) => {
-                setEmail(e.target.value);
-              }}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               type="email"
               id="email"
               name="email"
-              placeholder="Enter email address"
+              placeholder="Enter your email"
             />
           </div>
 
           <div className="input-group">
             <label htmlFor="password">Password</label>
             <input
-              onChange={(e) => {
-                setPassword(e.target.value);
-              }}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               type="password"
               id="password"
               name="password"
-              placeholder="Enter password"
+              placeholder="Enter your password"
             />
           </div>
 
-          <button className="button primary-button">Login</button>
+          <button
+            type="submit"
+            className="button primary-button"
+            disabled={loading}
+          >
+            {loading ? "Logging In..." : "Login"}
+          </button>
         </form>
 
-        <p>
-          Don't have an account? <Link to={"/register"}>Register</Link>
+        <p className="auth-link">
+          Don't have an account? <Link to="/register">Register</Link>
         </p>
       </div>
     </main>
