@@ -8,13 +8,14 @@ import {
   CartesianGrid,
 } from "recharts";
 import api from "../../../api/axios";
+import { useState } from "react";
 import { useEffect } from "react";
 import { useInterview } from "../../interview/hooks/useinterview";
 import { useNavigate } from "react-router";
-
 import "../styles/dashboard.scss";
 
 const Dashboard = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { reports, getReports, loading } = useInterview();
   const navigate = useNavigate();
 
@@ -68,7 +69,20 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-layout">
-      <aside className="sidebar">
+      <button
+        className="hamburger-btn"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+      >
+        ☰
+      </button>
+      <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
+        {sidebarOpen && (
+          <div
+            className="sidebar-overlay"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         <nav>
           <button
             className="active-menu"
@@ -76,10 +90,39 @@ const Dashboard = () => {
           >
             📊 Dashboard
           </button>
-          <button onClick={() => navigate("/")}>📄 Generate Report</button>
-          <button onClick={() => navigate("/reports")}>📄 Reports</button>
-          <button onClick={() => navigate("/ats-resume")}>📑 ATS Resume</button>
-          <button onClick={() => navigate("/profile")}>👤 Profile</button>
+          <button
+            onClick={() => {
+              navigate("/");
+              setSidebarOpen(false);
+            }}
+          >
+            📄 Generate Report
+          </button>
+          <button
+            onClick={() => {
+              navigate("/reports");
+              setSidebarOpen(false);
+            }}
+          >
+            📄 Reports
+          </button>
+
+          <button
+            onClick={() => {
+              navigate("/ats-resume");
+              setSidebarOpen(false);
+            }}
+          >
+            📑 ATS Resume
+          </button>
+          <button
+            onClick={() => {
+              navigate("/profile");
+              setSidebarOpen(false);
+            }}
+          >
+            👤 Profile
+          </button>
           <button onClick={handleLogout}>🚪 Logout</button>
         </nav>
         <div className="logo">ResumeAI</div>

@@ -127,3 +127,23 @@
   color: #22c55e;
   font-weight: 500;
 }
+@media (max-width: 768px) {
+  .ats-page {
+    padding: 1rem;
+  }
+
+  .ats-card,
+  .result-card {
+    width: 100%;
+  }
+
+  .score-circle {
+    width: 120px;
+    height: 120px;
+    font-size: 1.5rem;
+  }
+
+  .keywords {
+    flex-wrap: wrap;
+  }
+}

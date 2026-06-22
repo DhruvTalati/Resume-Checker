@@ -17,3 +17,19 @@ body,
   color: $text;
   font-family: "Poppins", sans-serif;
 }
+* {
+  box-sizing: border-box;
+}
+img,
+svg,
+video {
+  max-width: 100%;
+}
+button,
+input,
+textarea {
+  font-family: inherit;
+}
+body {
+  overflow-x: hidden;
+}
