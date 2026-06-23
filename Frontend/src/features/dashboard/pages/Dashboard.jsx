@@ -75,14 +75,13 @@ const Dashboard = () => {
       >
         ☰
       </button>
+      {sidebarOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
       <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
-        {sidebarOpen && (
-          <div
-            className="sidebar-overlay"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-
         <nav>
           <button
             className="active-menu"
@@ -123,7 +122,14 @@ const Dashboard = () => {
           >
             👤 Profile
           </button>
-          <button onClick={handleLogout}>🚪 Logout</button>
+          <button
+            onClick={() => {
+              setSidebarOpen(false);
+              handleLogout();
+            }}
+          >
+            🚪 Logout
+          </button>
         </nav>
         <div className="logo">ResumeAI</div>
         <div className="user-profile">
@@ -166,17 +172,50 @@ const Dashboard = () => {
 
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={chartData}>
-                  <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                  <XAxis dataKey="name" stroke="#94a3b8" />
+                  <CartesianGrid
+                    stroke="#9DB2BF"
+                    strokeOpacity={0.15}
+                    strokeDasharray="5 5"
+                  />
+
+                  <XAxis dataKey="name" stroke="#DDE6ED" />
+
+                  <YAxis stroke="#DDE6ED" />
                   <YAxis stroke="#94a3b8" />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#0f172a",
-                      border: "1px solid #334155",
+                      backgroundColor: "#3E5368",
+                      border: "1px solid #9DB2BF",
                       borderRadius: "12px",
+                      color: "#DDE6ED",
+                    }}
+                    labelStyle={{
+                      color: "#DDE6ED",
+                    }}
+                    cursor={{ fill: "rgba(157,178,191,0.15)" }}
+                    itemStyle={{
+                      color: "#DDE6ED",
                     }}
                   />
-                  <Bar dataKey="score" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+                  <Bar
+                    dataKey="score"
+                    fill="url(#scoreGradient)"
+                    radius={[14, 14, 0, 0]}
+                  />
+
+                  <defs>
+                    <linearGradient
+                      id="scoreGradient"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop offset="0%" stopColor="#DDE6ED" />
+                      <stop offset="50%" stopColor="#9DB2BF" />
+                      <stop offset="100%" stopColor="#526D82" />
+                    </linearGradient>
+                  </defs>
                 </BarChart>
               </ResponsiveContainer>
             </div>

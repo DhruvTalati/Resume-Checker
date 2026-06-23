@@ -4,12 +4,18 @@ import { useState } from "react";
 const ATSResume = () => {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
-
+  const [score, setScore] = useState(null);
   const handleAnalyze = async () => {
     if (!file) {
       alert("Please upload a resume first");
       return;
     }
+    setLoading(true);
+
+    setTimeout(() => {
+      setScore(87);
+      setLoading(false);
+    }, 3000);
 
     setLoading(true);
     setTimeout(() => {
@@ -36,11 +42,9 @@ const ATSResume = () => {
 
           <div className="upload-content">
             <h3>📄 Upload Resume</h3>
-            <p>PDF files only</p>
+            <p>{file ? file.name : "Drag & Drop or Click to Upload"}</p>
           </div>
         </label>
-
-        {file && <p className="selected-file">✅ {file.name}</p>}
 
         <button
           className="analyze-btn"
@@ -50,18 +54,88 @@ const ATSResume = () => {
           {loading ? "📊 Checking ATS Score..." : "Analyze Resume"}
         </button>
       </div>
+      {score && (
+        <div className="result-card">
+          <h2>📊 ATS Analysis Result</h2>
 
-      <div className="result-card">
-        <h2>ATS Score</h2>
-        <div className="score-circle">87%</div>
+          {/* Score Circle */}
+          <div
+            className={`score-circle ${
+              score >= 80 ? "excellent" : score >= 60 ? "good" : "poor"
+            }`}
+          >
+            {score}%
+          </div>
 
-        <div className="keywords">
-          <h3>Missing Keywords</h3>
-          <span>Docker</span>
-          <span>CI/CD</span>
-          <span>Redux Toolkit</span>
+          {/* ATS Stats */}
+          <div className="ats-stats">
+            <div className="ats-stat">
+              <h4>Keywords Found</h4>
+              <span>24</span>
+            </div>
+
+            <div className="ats-stat">
+              <h4>Missing Keywords</h4>
+              <span>3</span>
+            </div>
+
+            <div className="ats-stat">
+              <h4>Resume Length</h4>
+              <span>1 Page</span>
+            </div>
+          </div>
+
+          {/* Missing Keywords */}
+          <div className="keywords">
+            <h3>⚠️ Missing Keywords</h3>
+
+            <div className="keyword-list">
+              <span>Docker</span>
+              <span>CI/CD</span>
+              <span>Redux Toolkit</span>
+            </div>
+          </div>
+
+          {/* Suggestions */}
+          <div className="suggestions">
+            <h3>💡 Improvement Suggestions</h3>
+
+            <ul>
+              <li>Add Docker experience or projects.</li>
+              <li>Mention CI/CD pipeline knowledge.</li>
+              <li>Include Redux Toolkit in relevant projects.</li>
+              <li>Add more measurable achievements.</li>
+              <li>Use ATS-friendly section headings.</li>
+            </ul>
+          </div>
+
+          {/* Resume Status */}
+          <div className="resume-status">
+            <strong>
+              {score >= 80
+                ? "🔥 Excellent ATS Compatibility"
+                : score >= 60
+                  ? "👍 Good ATS Compatibility"
+                  : "⚠️ Needs Optimization"}
+            </strong>
+
+            <p>
+              {score >= 80
+                ? "Your resume is highly optimized for Applicant Tracking Systems."
+                : score >= 60
+                  ? "Your resume performs well but can be improved further."
+                  : "Your resume may struggle to pass ATS screening. Consider applying the suggestions above."}
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="result-actions">
+            <button className="download-report-btn">📥 Download Report</button>
+
+            <button className="reanalyze-btn">🔄 Analyze Again</button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

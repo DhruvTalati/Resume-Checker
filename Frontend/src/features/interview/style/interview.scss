@@ -1,12 +1,12 @@
 // ── Shared Variables (mirrors home.scss theme) ────────────────────────────────
-$bg-page: #0d1117;
-$bg-card: #161b22;
-$bg-panel: #1c2230;
-$bg-input: #1e2535;
-$border-color: #2a3348;
-$text-primary: #e6edf3;
-$text-muted: #7d8590;
-$accent: #ff2d78;
+$bg-page: #27374d;
+$bg-card: #3e5368;
+$bg-panel: #526d82;
+$bg-input: #2f4357;
+$border-color: rgba(221, 230, 237, 0.15);
+$text-primary: #dde6ed;
+$text-muted: #9db2bf;
+$accent: #9db2bf;
 $font-stack:
   system-ui,
   -apple-system,
@@ -28,7 +28,7 @@ $severity-low: #3fb950;
 .interview-page {
   width: 100%;
   min-height: 100vh;
-  background-color: $bg-page;
+  background: #27374d;
   color: $text-primary;
   font-family: $font-stack;
   display: flex;
@@ -43,7 +43,11 @@ $severity-low: #3fb950;
   width: 100%;
   max-width: 1280px;
   margin: 0 auto;
-  background-color: $bg-card;
+  background: rgba(62, 83, 104, 0.95);
+  backdrop-filter: blur(20px);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   border: 1px solid $border-color;
   border-radius: 1rem;
   justify-content: space-between;
@@ -94,14 +98,15 @@ $severity-low: #3fb950;
       color 0.15s;
 
     &:hover {
-      background-color: $bg-panel;
+      background: rgba(157, 178, 191, 0.1);
+      transform: translateX(4px);
       color: $text-primary;
     }
 
     &--active {
-      background-color: rgba($accent, 0.1);
-      color: $accent;
-
+      background: rgba(157, 178, 191, 0.15);
+      color: #dde6ed;
+      border-left: 4px solid #dde6ed;
       .interview-nav__icon svg {
         stroke: $accent;
       }
@@ -112,6 +117,15 @@ $severity-low: #3fb950;
     display: flex;
     align-items: center;
     flex-shrink: 0;
+  }
+}
+.interview-nav .primary-button {
+  background: linear-gradient(135deg, #526d82, #27374d);
+  color: white;
+  border-radius: 14px;
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(39, 55, 77, 0.4);
   }
 }
 
@@ -148,7 +162,7 @@ $severity-low: #3fb950;
   &__count {
     font-size: 0.8rem;
     color: $text-muted;
-    background-color: $bg-panel;
+    background: rgba(157, 178, 191, 0.1);
     padding: 0.15rem 0.6rem;
     border-radius: 2rem;
     border: 1px solid $border-color;
@@ -163,14 +177,17 @@ $severity-low: #3fb950;
 }
 
 .q-card {
-  background-color: $bg-panel;
+  background: #526d82;
+  transition: all 0.3s ease;
   border: 1px solid $border-color;
   border-radius: 0.6rem;
   overflow: hidden;
   transition: border-color 0.2s;
 
   &:hover {
-    border-color: lighten($border-color, 8%);
+    transform: translateY(-3px);
+    border-color: #dde6ed;
+    box-shadow: 0 12px 25px rgba(0, 0, 0, 0.2);
   }
 
   &__header {
@@ -358,6 +375,7 @@ $severity-low: #3fb950;
   padding: 1.75rem 1.25rem;
   display: flex;
   flex-direction: column;
+  background: rgba(39, 55, 77, 0.4);
   gap: 1.25rem;
 }
 
@@ -394,15 +412,18 @@ $severity-low: #3fb950;
     border: 4px solid;
 
     &.score--high {
-      border-color: $severity-low;
+      border-color: #22c55e;
+      box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
     }
 
     &.score--mid {
-      border-color: $severity-medium;
+      border-color: #f59e0b;
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
     }
 
     &.score--low {
-      border-color: $severity-high;
+      border-color: #ef4444;
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
     }
   }
 
@@ -473,5 +494,43 @@ $severity-low: #3fb950;
     color: $severity-low;
     background-color: rgba($severity-low, 0.1);
     border-color: rgba($severity-low, 0.25);
+  }
+}
+@media (max-width: 992px) {
+  .interview-layout {
+    flex-direction: column;
+  }
+  .interview-nav,
+  .interview-sidebar {
+    width: 100%;
+  }
+  .interview-divider {
+    display: none;
+  }
+  .interview-content {
+    max-height: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .interview-page {
+    padding: 0.75rem;
+  }
+  .interview-content {
+    padding: 1rem;
+  }
+  .content-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .match-score__ring {
+    width: 80px;
+    height: 80px;
+  }
+  .q-card__header {
+    flex-wrap: wrap;
+  }
+  .roadmap-day {
+    padding-left: 2.8rem;
   }
 }
