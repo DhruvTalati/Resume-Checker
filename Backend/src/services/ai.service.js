@@ -259,7 +259,7 @@ ${jobDescription}
       console.error("Message:", err.message);
 
       // Retry only when Gemini is temporarily unavailable
-      if (err.status !== 503) {
+      if (err.status !== 503 && err.status !== 429) {
         throw err;
       }
 
@@ -376,10 +376,12 @@ ${jobDescription}
 async function generatePdfFromHtml(htmlContent) {
   console.log("Launching Chrome...");
   const browser = await puppeteer.launch({
-    executablePath:
-      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    headless: "new",
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+    ],
   });
   console.log("Chrome launched successfully");
   const page = await browser.newPage();
@@ -547,28 +549,52 @@ ${jobDescription}
 
     for (let i = 0; i < 3; i++) {
       try {
+        console.log(`Gemini Attempt ${i + 1}`);
+
         response = await ai.models.generateContent({
           model: "gemini-2.5-flash",
           contents: prompt,
           config: {
             responseMimeType: "application/json",
-            responseSchema: zodToJsonSchema(resumePdfSchema),
           },
         });
 
+        console.log("Gemini Success");
+
         break;
       } catch (err) {
-        console.log(`Gemini attempt ${i + 1} failed`);
+        console.error(`Gemini Attempt ${i + 1} Failed`);
+        console.error("Status:", err.status);
+        console.error("Message:", err.message);
 
+        // Retry only for temporary errors (503) and rate-limit errors (429)
+        if (err.status !== 503 && err.status !== 429) {
+          throw err;
+        }
+
+        // Stop after the final attempt
         if (i === 2) {
           throw err;
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Respect Gemini's suggested retry delay when available
+        let delay = (i + 1) * 5000;
+
+        const retryMatch = err.message?.match(/retry in ([\d.]+)s/i);
+
+        if (retryMatch) {
+          delay = Math.ceil(Number(retryMatch[1])) * 1000;
+        }
+
+        console.log(`Retrying in ${delay / 1000} seconds...`);
+
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
 
     const jsonContent = JSON.parse(response.text);
+    console.log("RAW RESUME RESPONSE:");
+    console.log(response.text);
 
     const pdfBuffer = await generatePdfFromHtml(jsonContent.html);
 
