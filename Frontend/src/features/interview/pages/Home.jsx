@@ -12,13 +12,35 @@ const Home = () => {
   const navigate = useNavigate();
 
   const handleGenerateReport = async () => {
-    const resumeFile = resumeInputRef.current.files[0];
-    const data = await generateReport({
-      jobDescription,
-      selfDescription,
-      resumeFile,
-    });
-    navigate(`/interview/${data._id}`);
+    try {
+      const resumeFile = resumeInputRef.current?.files?.[0];
+
+      if (!jobDescription.trim()) {
+        alert("Please enter the Job Description.");
+        return;
+      }
+
+      if (!resumeFile && !selfDescription.trim()) {
+        alert("Please upload a resume or enter a self description.");
+        return;
+      }
+
+      const data = await generateReport({
+        jobDescription,
+        selfDescription,
+        resumeFile,
+      });
+
+      if (!data || !data._id) {
+        alert("Failed to generate report.");
+        return;
+      }
+
+      navigate(`/interview/${data._id}`);
+    } catch (error) {
+      console.error(error);
+      alert("Something went wrong while generating the report.");
+    }
   };
 
   if (loading) {
@@ -221,7 +243,7 @@ const Home = () => {
             </button>
 
             <button
-              className="dashboard-btn" 
+              className="dashboard-btn"
               onClick={() => navigate("/dashboard")}
             >
               📊 View Dashboard

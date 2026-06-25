@@ -25,21 +25,27 @@ export const useInterview = () => {
     resumeFile,
   }) => {
     setLoading(true);
-    let response = null;
+
     try {
-      response = await generateInterviewReport({
+      const response = await generateInterviewReport({
         jobDescription,
         selfDescription,
         resumeFile,
       });
+
+      if (!response || !response.interviewReport) {
+        throw new Error("Interview report not generated.");
+      }
+
       setReport(response.interviewReport);
+
+      return response.interviewReport;
     } catch (error) {
-      console.log(error);
+      console.error("Generate Report Error:", error);
+      throw error;
     } finally {
       setLoading(false);
     }
-
-    return response.interviewReport;
   };
 
   const getReportById = useCallback(async (interviewId) => {

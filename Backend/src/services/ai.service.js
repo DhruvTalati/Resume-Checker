@@ -106,39 +106,125 @@ generate an interview preparation report.
 
 Return ONLY valid JSON.
 
-Return EXACTLY this structure:
+The response MUST strictly follow the response schema provided by the API.
+
+Do not invent your own structure.
+
+Do not change property names.
+
+Every field must match the required type.
+
+Requirements:
+
+- title must be a string.
+- matchScore must be a number between 0 and 100.
+
+- technicalQuestions must be an array of objects.
+
+Each technical question object must contain:
+
+- question
+- intention
+- answer
+
+- behavioralQuestions must be an array of objects.
+
+Each behavioral question object must contain:
+
+- question
+- intention
+- answer
+
+- skillGaps must be an array of objects.
+
+Each skill gap object must contain:
+
+- skill
+- severity
+
+severity must be one of:
+
+low
+medium
+high
+
+- preparationPlan must be an array of objects.
+
+Each preparation plan object must contain:
+
+- day (NUMBER ONLY)
+
+Examples:
+
+Correct:
 
 {
-  "title": "Frontend Developer",
-  "matchScore": 90,
-  "technicalQuestions": [
-    {
-      "question": "",
-      "intention": "",
-      "answer": ""
-    }
-  ],
-  "behavioralQuestions": [
-    {
-      "question": "",
-      "intention": "",
-      "answer": ""
-    }
-  ],
-  "skillGaps": [
-    {
-      "skill": "",
-      "severity": "low"
-    }
-  ],
-  "preparationPlan": [
-    {
-      "day": 1,
-      "focus": "",
-      "tasks": [""]
-    }
-  ]
+  "day": 1
 }
+
+{
+  "day": 2
+}
+
+{
+  "day": 3
+}
+
+Incorrect:
+
+{
+  "day": "Day 1"
+}
+
+{
+  "day": "Day 1: Frontend"
+}
+
+{
+  "day": "First Day"
+}
+
+focus must be a string.
+
+tasks must be an array of strings.
+
+IMPORTANT:
+
+The "day" field must be an integer only.
+
+Do NOT include any text inside the day field.
+
+Examples:
+
+Correct:
+
+"day": 1
+
+Wrong:
+
+"day": "Day 1"
+
+Wrong:
+
+"day": "Day 1: React"
+
+Wrong:
+
+"day": "First Day"
+
+Do NOT return arrays of numbers.
+
+Do NOT return arrays of strings.
+
+Do NOT omit any required property.
+
+Do NOT return markdown.
+
+Do NOT return explanations.
+
+Do NOT return any text before or after the JSON.
+
+Return ONLY the JSON object.
 
 Resume:
 ${resume}
@@ -150,63 +236,141 @@ Job Description:
 ${jobDescription}
 `;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash-lite",
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: zodToJsonSchema(interviewReportSchema),
-    },
-  });
+  let response;
+
+  for (let i = 0; i < 3; i++) {
+    try {
+      console.log(`Gemini Attempt ${i + 1}`);
+
+      response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+        },
+      });
+
+      console.log("Gemini Success");
+
+      break;
+    } catch (err) {
+      console.error(`Gemini Attempt ${i + 1} Failed`);
+      console.error("Status:", err.status);
+      console.error("Message:", err.message);
+
+      // Retry only when Gemini is temporarily unavailable
+      if (err.status !== 503) {
+        throw err;
+      }
+
+      // Stop after the final attempt
+      if (i === 2) {
+        throw err;
+      }
+
+      const delay = (i + 1) * 5000;
+      console.log(`Gemini is busy. Retrying in ${delay / 1000} seconds...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
 
   console.log("RAW GEMINI RESPONSE:");
   console.log(response.text);
 
   let parsed = JSON.parse(response.text);
 
-  if (Array.isArray(parsed.technicalQuestions)) {
-    parsed.technicalQuestions = parsed.technicalQuestions.map((q) => ({
-      question: q,
-      intention: "Technical Assessment",
-      answer: "Prepare a detailed explanation with examples.",
-    }));
-  }
+  // Convert Gemini string responses into the object structure required by the schema
 
-  if (Array.isArray(parsed.behavioralQuestions)) {
-    parsed.behavioralQuestions = parsed.behavioralQuestions.map((q) => ({
-      question: q,
-      intention: "Behavioral Assessment",
-      answer: "Answer using the STAR method.",
-    }));
-  }
+  parsed.technicalQuestions = (parsed.technicalQuestions || []).map((item) => {
+    if (typeof item === "string") {
+      return {
+        question: item,
+        intention: "Technical Assessment",
+        answer: "Provide a detailed answer with practical examples.",
+      };
+    }
+    return item;
+  });
 
-  if (Array.isArray(parsed.skillGaps)) {
-    parsed.skillGaps = parsed.skillGaps.map((skill) => ({
-      skill:
-        typeof skill === "string"
-          ? skill.split("Severity")[0].trim()
-          : skill.skill,
-      severity: "medium",
-    }));
-  }
+  parsed.behavioralQuestions = (parsed.behavioralQuestions || []).map(
+    (item) => {
+      if (typeof item === "string") {
+        return {
+          question: item,
+          intention: "Behavioral Assessment",
+          answer: "Answer using the STAR method.",
+        };
+      }
+      return item;
+    },
+  );
 
-  if (Array.isArray(parsed.preparationPlan)) {
-    parsed.preparationPlan = parsed.preparationPlan.map((item, index) => ({
-      day: index + 1,
-      focus: typeof item === "string" ? item : item.focus,
-      tasks: [typeof item === "string" ? item : item.focus],
-    }));
-  }
+  parsed.skillGaps = (parsed.skillGaps || []).map((item) => {
+    if (typeof item === "string") {
+      const match = item.match(
+        /skill:\s*(.*?),\s*severity:\s*(low|medium|high)/i,
+      );
+
+      return {
+        skill: match ? match[1].trim() : item,
+        severity: match ? match[2].toLowerCase() : "medium",
+      };
+    }
+
+    return item;
+  });
+
+  parsed.preparationPlan = (parsed.preparationPlan || []).map((item) => {
+    if (typeof item === "string") {
+      const dayMatch = item.match(/day:\s*(\d+)/i);
+      const focusMatch = item.match(/focus:\s*([^,]+)/i);
+      const tasksMatch = item.match(/tasks:\s*\[(.*)\]/i);
+
+      let tasks = [];
+
+      if (tasksMatch) {
+        tasks = tasksMatch[1]
+          .split(",")
+          .map((t) => t.replace(/"/g, "").trim())
+          .filter(Boolean);
+      }
+
+      return {
+        day: dayMatch ? Number(dayMatch[1]) : 1,
+        focus: focusMatch ? focusMatch[1].trim() : "",
+        tasks,
+      };
+    }
+
+    return item;
+  });
+  // Normalize Gemini response in case any array item is returned as a JSON string
+
+  const parseIfString = (value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  };
+
+  parsed.technicalQuestions =
+    parsed.technicalQuestions?.map(parseIfString) || [];
+
+  parsed.behavioralQuestions =
+    parsed.behavioralQuestions?.map(parseIfString) || [];
+
+  parsed.skillGaps = parsed.skillGaps?.map(parseIfString) || [];
+
+  parsed.preparationPlan = parsed.preparationPlan?.map(parseIfString) || [];
 
   const validated = interviewReportSchema.parse(parsed);
 
   return validated;
-
-  if (Array.isArray(parsed)) {
-    parsed = parsed[0];
-  }
-
-  return parsed;
 }
 
 async function generatePdfFromHtml(htmlContent) {
@@ -253,7 +417,7 @@ CRITICAL INSTRUCTIONS:
 You MUST return ONLY a valid JSON object.
 
 You MUST NOT return:
-- Markdown
+- MarkdownIMPORTANT:
 - Explanations
 - Notes
 - Candidate analysis
@@ -273,6 +437,15 @@ The response MUST exactly follow this schema:
 {
   "html": "<html>...</html>"
 }
+
+IMPORTANT:
+
+- The value of "html" must be a plain HTML string.
+- Do NOT escape the HTML.
+- Do NOT return HTML as a JSON object.
+- Do NOT include markdown code fences.
+- Do NOT include explanations before or after the JSON.
+- Return exactly one JSON object with one property: "html".
 
 The html field MUST contain a complete professional resume.
 

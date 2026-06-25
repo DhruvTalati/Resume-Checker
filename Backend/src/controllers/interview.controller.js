@@ -9,30 +9,57 @@ const interviewReportModel = require("../models/interviewReport.model");
  * @description Controller to generate interview report based on user self description, resume and job description.
  */
 async function generateInterViewReportController(req, res) {
-  const resumeContent = await pdfParse(req.file.buffer);
-  const { selfDescription, jobDescription } = req.body;
+  try {
+    let resumeText = "";
+    console.log("Step 1 : Request Received");
 
-  const interViewReportByAi = await generateInterviewReport({
-    resume: resumeContent.text,
-    selfDescription,
-    jobDescription,
-  });
+    if (req.file) {
+      const resumeContent = await pdfParse(req.file.buffer);
+      resumeText = resumeContent.text;
+      console.log("Step 2 : PDF Parsed");
+    }
+    const { selfDescription, jobDescription } = req.body;
+    console.log("Step 3 : Calling Gemini");
 
-  console.log("AI RESPONSE:");
-  console.log(JSON.stringify(interViewReportByAi, null, 2));
-  const interviewReport = await interviewReportModel.create({
-    user: req.user.id,
-    resume: resumeContent.text,
-    selfDescription,
-    jobDescription,
-    ...interViewReportByAi,
-    title: interViewReportByAi?.title || "Interview Report",
-  });
+    const interViewReportByAi = await generateInterviewReport({
+      resume: resumeText,
+      selfDescription,
+      jobDescription,
+    });
+    console.log("Step 4 : Gemini Response Received");
 
-  res.status(201).json({
-    message: "Interview report generated successfully.",
-    interviewReport,
-  });
+    console.log("AI RESPONSE:");
+    console.log(JSON.stringify(interViewReportByAi, null, 2));
+    console.log("Step 5 : Saving MongoDB");
+    const interviewReport = await interviewReportModel.create({
+      user: req.user.id,
+      resume: resumeText,
+      selfDescription,
+      jobDescription,
+      ...interViewReportByAi,
+      title: interViewReportByAi?.title || "Interview Report",
+    });
+    console.log("Step 6 : MongoDB Saved");
+    res.status(201).json({
+      message: "Interview report generated successfully.",
+      interviewReport,
+    });
+  } catch (error) {
+    console.error("Generate Interview Report Error:");
+    console.error(error);
+
+    if (error.status === 503) {
+      return res.status(503).json({
+        success: false,
+        message:
+          "Our AI service is currently experiencing high demand. Please try again in a few minutes.",
+      });
+    }
+    res.status(500).json({
+      message: "Failed to generate interview report.",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
 }
 
 /**
