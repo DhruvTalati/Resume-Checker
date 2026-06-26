@@ -248,7 +248,7 @@ ${jobDescription}
           contents: prompt,
           config: {
             responseMimeType: "application/json",
-            responseSchema: zodToJsonSchema(resumePdfSchema),
+            responseSchema: zodToJsonSchema(interviewReportSchema),
           },
         }),
         new Promise((_, reject) =>
@@ -382,7 +382,7 @@ ${jobDescription}
 async function generatePdfFromHtml(htmlContent) {
   console.log("Launching Chrome...");
   const browser = await puppeteer.launch({
-    headless: "new",
+    headless: true,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -557,13 +557,13 @@ ${jobDescription}
       try {
         console.log(`Gemini Attempt ${i + 1}`);
 
-        rresponse = await Promise.race([
+        response = await Promise.race([
           ai.models.generateContent({
             model: "gemini-2.5-flash-lite",
             contents: prompt,
             config: {
               responseMimeType: "application/json",
-              responseSchema: zodToJsonSchema(resumePdfSchema),
+              responseSchema: zodToJsonSchema(interviewReportSchema),
             },
           }),
           new Promise((_, reject) =>
