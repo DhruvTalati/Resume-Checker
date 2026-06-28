@@ -236,50 +236,69 @@ Job Description:
 ${jobDescription}
 `;
 
-  let response;
+  const models = [
+    "gemini-2.0-flash",
+    "gemini-1.5-flash-8b",
+    "gemini-1.5-flash",
+  ];
 
-  for (let i = 0; i < 5; i++) {
-    try {
-      console.log("Calling Gemini API...");
-      console.log(`Gemini Attempt ${i + 1}`);
-      response = await Promise.race([
-        ai.models.generateContent({
-          model: "gemini-2.0-flash",
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: zodToJsonSchema(interviewReportSchema),
-          },
-        }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Gemini timeout")), 60000),
-        ),
-      ]);
-      console.log("Calling Gemini API...");
-      console.log("Gemini Success");
+  for (const model of models) {
+    let modelExhausted = false;
 
-      break;
-    } catch (err) {
-      console.error(`Gemini Attempt ${i + 1} Failed`);
-      console.error("Status:", err.status);
-      console.error("Message:", err.message);
+    for (let i = 0; i < 3; i++) {
+      try {
+        console.log(`Calling Gemini API... Model: ${model}, Attempt ${i + 1}`);
+        response = await Promise.race([
+          ai.models.generateContent({
+            model: model,
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: zodToJsonSchema(interviewReportSchema),
+            },
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Gemini timeout")), 60000),
+          ),
+        ]);
+        console.log(`Gemini Success on model: ${model}`);
+        break;
+      } catch (err) {
+        console.error(`Model: ${model} Attempt ${i + 1} Failed`);
+        console.error("Status:", err.status);
+        console.error("Message:", err.message);
 
-      // Retry only when Gemini is temporarily unavailable
-      if (err.status !== 503 && err.status !== 429) {
+        // Quota exhausted on this model — try next model immediately
+        if (err.status === 429 && err.message?.includes("limit: 0")) {
+          console.log(
+            `Model ${model} quota exhausted. Switching to next model...`,
+          );
+          modelExhausted = true;
+          break;
+        }
+
+        // Temporary overload — retry same model after delay
+        if (err.status === 503 || err.status === 429) {
+          if (i === 2) {
+            modelExhausted = true;
+            break;
+          }
+          const delay = (i + 1) * 8000;
+          console.log(`Retrying in ${delay / 1000} seconds...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
         throw err;
       }
-
-      // Stop after the final attempt
-      if (i === 2) {
-        throw err;
-      }
-
-      const delay = (i + 1) * 8000;
-      console.log(`Gemini is busy. Retrying in ${delay / 1000} seconds...`);
-      await new Promise((resolve) => setTimeout(resolve, delay));
     }
+
+    if (response) break;
   }
 
+  if (!response) {
+    throw new Error("All Gemini models exhausted. Please try again later.");
+  }
   console.log("RAW GEMINI RESPONSE:");
   console.log(response.text);
 
