@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from "react-router";
 import api from "../../api/axios";
-import "./sidebar.scss";
+import "../Sidebar/Sidebar.scss";
 
 const NAV = [
   { label: "Dashboard", icon: "📊", path: "/dashboard" },
