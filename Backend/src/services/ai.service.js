@@ -291,6 +291,23 @@ OUTPUT RULES — strictly follow these:
     })
     .map(parseIfString);
 
+  // Defensive defaults — Gemini occasionally omits fields even with responseSchema set,
+  // especially on fallback models like gemini-1.5-flash-8b
+  if (
+    typeof parsed.matchScore !== "number" ||
+    Number.isNaN(parsed.matchScore)
+  ) {
+    console.warn(
+      "[AI] matchScore missing from Gemini response — defaulting to 50",
+    );
+    parsed.matchScore = 50;
+  }
+  parsed.matchScore = Math.min(100, Math.max(0, Math.round(parsed.matchScore)));
+
+  if (!parsed.title || typeof parsed.title !== "string") {
+    parsed.title = "Interview Report";
+  }
+
   return interviewReportSchema.parse(parsed);
 }
 
