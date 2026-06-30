@@ -115,7 +115,6 @@ async function callGeminiWithFallback({ schema, prompt, timeoutMs = 90000 }) {
         if (err.status === 503 || err.status === 429) {
           if (attempt === 2) break; // give up on this model
 
-          // Respect Gemini's suggested retry delay when available
           let delay = (attempt + 1) * 8000;
           const retryMatch = err.message?.match(/retry in ([\d.]+)s/i);
           if (retryMatch) delay = Math.ceil(parseFloat(retryMatch[1])) * 1000;
@@ -158,8 +157,45 @@ const toQuestion = (defaultIntention, defaultAnswer) => (item) => {
   return item;
 };
 
-// ── generateInterviewReport ───────────────────────────────────────────────────
+// ── generateInterviewReport (public) ──────────────────────────────────────────
+// Thin wrapper that retries the ENTIRE generation up to 2 times if the
+// underlying model returns a hollow/empty report (no questions, no plan).
+// This handles cases where a fallback model "succeeds" but returns junk.
 async function generateInterviewReport({
+  resume,
+  selfDescription,
+  jobDescription,
+}) {
+  const MAX_OUTER_ATTEMPTS = 2;
+  let lastError;
+
+  for (
+    let outerAttempt = 1;
+    outerAttempt <= MAX_OUTER_ATTEMPTS;
+    outerAttempt++
+  ) {
+    try {
+      return await generateInterviewReportOnce({
+        resume,
+        selfDescription,
+        jobDescription,
+      });
+    } catch (err) {
+      lastError = err;
+      console.warn(
+        `[AI] Outer attempt ${outerAttempt}/${MAX_OUTER_ATTEMPTS} failed: ${err.message}`,
+      );
+      if (outerAttempt < MAX_OUTER_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, 3000)); // brief pause before retrying everything
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+// ── generateInterviewReportOnce (internal) ────────────────────────────────────
+async function generateInterviewReportOnce({
   resume,
   selfDescription,
   jobDescription,
@@ -200,12 +236,14 @@ INSTRUCTIONS — read carefully before generating:
      • intention: What competency or mindset the interviewer is testing.
      • answer:    A detailed model answer. Include: key points to mention, concrete 
                   examples, common pitfalls to avoid, and how to structure the response.
+   - This array MUST NOT be empty. Generate at least 8 questions no matter what.
 
 4. BEHAVIORAL QUESTIONS (minimum 5, maximum 10)
    - Based on the company culture signals in the job description.
    - Cover: teamwork, conflict resolution, leadership, failure & learning, ownership.
    - Each answer must follow the STAR method (Situation, Task, Action, Result) and 
      give a worked example the candidate can adapt.
+   - This array MUST NOT be empty. Generate at least 5 questions no matter what.
 
 5. SKILL GAPS
    - List skills explicitly required by the job description that the candidate lacks or 
@@ -213,7 +251,7 @@ INSTRUCTIONS — read carefully before generating:
    - severity = "high" if the skill is in the job title or listed as required.
    - severity = "medium" if listed as preferred or mentioned multiple times.
    - severity = "low" if mentioned once or as a nice-to-have.
-   - If there are no significant gaps, return an empty array — do NOT invent gaps.
+   - If there are genuinely no gaps, return an empty array — but only as a last resort.
 
 6. PREPARATION PLAN (7–14 days)
    - Build a realistic, day-by-day plan to close the skill gaps and prepare for the interview.
@@ -221,12 +259,14 @@ INSTRUCTIONS — read carefully before generating:
    - Each day must have: a clear focus topic and 3–5 specific, actionable tasks 
      (e.g. "Complete LeetCode problems 1–10 on arrays", "Watch system design video on 
      YouTube: Gaurav Sen", "Build a small React app with useContext").
+   - This array MUST NOT be empty. Generate at least 7 days no matter what.
 
 OUTPUT RULES — strictly follow these:
 - Return ONLY valid JSON matching the schema.
 - Do NOT add markdown, code fences, comments, or any text outside the JSON.
 - Do NOT use generic filler questions. Every question must be specific to this role.
 - The "day" field MUST be an integer. Never a string.
+- NEVER return empty arrays for technicalQuestions, behavioralQuestions, or preparationPlan.
 `;
 
   const response = await callGeminiWithFallback({
@@ -291,8 +331,7 @@ OUTPUT RULES — strictly follow these:
     })
     .map(parseIfString);
 
-  // Defensive defaults — Gemini occasionally omits fields even with responseSchema set,
-  // especially on fallback models like gemini-1.5-flash-8b
+  // Defensive defaults — Gemini occasionally omits fields even with responseSchema set
   if (
     typeof parsed.matchScore !== "number" ||
     Number.isNaN(parsed.matchScore)
@@ -304,8 +343,26 @@ OUTPUT RULES — strictly follow these:
   }
   parsed.matchScore = Math.min(100, Math.max(0, Math.round(parsed.matchScore)));
 
-  if (!parsed.title || typeof parsed.title !== "string") {
+  if (
+    !parsed.title ||
+    typeof parsed.title !== "string" ||
+    !parsed.title.trim()
+  ) {
     parsed.title = "Interview Report";
+  }
+
+  // Reject hollow responses — if the model returned almost nothing useful,
+  // throw so the OUTER retry wrapper (generateInterviewReport) tries again
+  // from scratch, instead of silently saving an empty report to the database.
+  const isHollow =
+    parsed.technicalQuestions.length === 0 &&
+    parsed.behavioralQuestions.length === 0 &&
+    parsed.preparationPlan.length === 0;
+
+  if (isHollow) {
+    throw new Error(
+      "Gemini returned an empty report (no questions or plan). Retrying.",
+    );
   }
 
   return interviewReportSchema.parse(parsed);
@@ -408,7 +465,6 @@ OUTPUT FORMAT — strictly follow:
 
   let response;
   try {
-    // resumePdfSchema is defined locally and used correctly here
     response = await callGeminiWithFallback({
       schema: resumePdfSchema,
       prompt,
@@ -416,8 +472,6 @@ OUTPUT FORMAT — strictly follow:
     });
   } catch (aiErr) {
     console.error("[Resume PDF] AI generation failed:", aiErr.message);
-
-    // Fallback: generate a basic resume from raw data
     const fallbackHtml = buildFallbackResume({
       resume,
       selfDescription,
@@ -436,8 +490,12 @@ OUTPUT FORMAT — strictly follow:
     );
   }
 
-  if (!jsonContent?.html) {
-    console.error("[Resume PDF] No HTML in response — using fallback");
+  if (
+    !jsonContent?.html ||
+    typeof jsonContent.html !== "string" ||
+    jsonContent.html.trim().length < 50
+  ) {
+    console.error("[Resume PDF] No usable HTML in response — using fallback");
     return generatePdfFromHtml(
       buildFallbackResume({ resume, selfDescription, jobDescription }),
     );
