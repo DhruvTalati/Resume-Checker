@@ -6,11 +6,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GENAI_API_KEY });
 
 const MODELS = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"];
 
-// ── Zod schemas (for final validation only — NOT passed to Gemini) ─────────────
-// Root cause fix: we no longer pass zodToJsonSchema to Gemini.
-// Gemini was reading property names from the schema and using them as values
-// (literally returning "question", "answer", "intention" as content).
-// Instead we define a raw JSON schema manually with clear descriptions + examples.
+// ── Zod schemas (for final validation only — NOT passed to Gemini) ──
 const interviewReportSchema = z.object({
   title: z.string(),
   matchScore: z.number().min(0).max(100),
@@ -45,8 +41,7 @@ const interviewReportSchema = z.object({
 
 const resumePdfSchema = z.object({ html: z.string() });
 
-// ── Raw JSON schema passed to Gemini (with examples so it understands the format) ──
-// This replaces zodToJsonSchema — examples prevent Gemini from using field names as values.
+// ── Raw JSON schema passed to Gemini
 const INTERVIEW_REPORT_GEMINI_SCHEMA = {
   type: "object",
   properties: {
@@ -187,7 +182,7 @@ const RESUME_PDF_GEMINI_SCHEMA = {
   required: ["html"],
 };
 
-// ── Gemini caller ─────────────────────────────────────────────────────────────
+// ── Gemini caller ────────────────────────────
 async function callGeminiWithFallback({
   geminiSchema,
   prompt,
@@ -246,7 +241,7 @@ async function callGeminiWithFallback({
   );
 }
 
-// ── HTML stripper ─────────────────────────────────────────────────────────────
+// ── HTML stripper ──────────────────────────
 function stripHtml(str) {
   if (typeof str !== "string") return str;
   return str
@@ -261,17 +256,13 @@ function stripHtml(str) {
     .trim();
 }
 
-// ── Placeholder detector ──────────────────────────────────────────────────────
-// Catches cases where Gemini returns field names as values
+// ── Placeholder detector ─────────────────────────────────────────
 const PLACEHOLDER_VALUES = new Set([
   "question",
   "answer",
   "intention",
   "skill",
   "severity",
-  "focus",
-  "tasks",
-  "day",
   "title",
   "matchscore",
   "matchScore",
@@ -286,7 +277,7 @@ function isPlaceholder(str) {
   return PLACEHOLDER_VALUES.has(str.toLowerCase().trim());
 }
 
-// ── Normalizers ───────────────────────────────────────────────────────────────
+// ── Normalizers ────────────────────────────────
 const isPlainObject = (v) =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 const tryParseJson = (v) => {
@@ -340,43 +331,81 @@ function normalizeSkillGaps(arr) {
 
 function normalizePreparationPlan(arr) {
   if (!Array.isArray(arr)) return [];
+
   const valid = arr
     .map(tryParseJson)
     .map((item) => {
       if (!isPlainObject(item)) return null;
-      const day = Number.isInteger(item.day)
-        ? item.day
-        : typeof item.day === "string" && /^\d+$/.test(item.day)
-          ? Number(item.day)
-          : null;
+
+      // Handle:
+      // 1
+      // "1"
+      // 1.0
+      // "Day 1"
+      // "Day 1: React"
+
+      let day = null;
+      const rawDay = item.day;
+
+      if (Number.isInteger(rawDay)) {
+        day = rawDay;
+      } else if (typeof rawDay === "number" && !isNaN(rawDay)) {
+        day = Math.round(rawDay);
+      } else if (typeof rawDay === "string") {
+        const trimmed = rawDay.trim();
+
+        if (/^\d+$/.test(trimmed)) {
+          day = Number(trimmed);
+        } else {
+          const match = trimmed.match(/day\s*(\d+)/i);
+
+          if (match) day = Number(match[1]);
+        }
+      }
+
       if (!day || day < 1) return null;
+
       const focus =
         typeof item.focus === "string" && item.focus.trim()
-          ? stripHtml(item.focus.trim())
+          ? stripHtml(item.focus)
           : null;
-      if (!focus || isPlaceholder(focus)) return null;
-      const tasks = Array.isArray(item.tasks)
-        ? item.tasks
-            .filter(
-              (t) => typeof t === "string" && t.trim() && !isPlaceholder(t),
-            )
-            .map((t) => stripHtml(t.trim()))
-        : [];
+
+      if (!focus) return null;
+
+      let tasks = [];
+
+      if (Array.isArray(item.tasks)) {
+        tasks = item.tasks
+          .filter((t) => typeof t === "string" && t.trim().length > 2)
+          .map((t) => stripHtml(t));
+      } else if (isPlainObject(item.tasks)) {
+        tasks = Object.values(item.tasks)
+          .filter((t) => typeof t === "string" && t.trim().length > 2)
+          .map((t) => stripHtml(t));
+      } else if (typeof item.tasks === "string" && item.tasks.trim()) {
+        tasks = item.tasks
+          .split(",")
+          .map((t) => stripHtml(t.trim()))
+          .filter(Boolean);
+      }
+
       return {
         day,
         focus,
-        tasks: tasks.length
-          ? tasks
-          : ["Review and practice key concepts for this topic."],
+        tasks: tasks.length > 0 ? tasks : ["Review and practice this topic."],
       };
     })
     .filter(Boolean);
+
   return valid
     .sort((a, b) => a.day - b.day)
-    .map((item, idx) => ({ ...item, day: idx + 1 }));
+    .map((item, index) => ({
+      ...item,
+      day: index + 1,
+    }));
 }
 
-// ── Fallback days for roadmap ─────────────────────────────────────────────────
+// ── Fallback days for roadmap ───────────────────────────
 const FALLBACK_DAYS = [
   {
     focus: "Deep-dive into the company and role",
@@ -443,7 +472,7 @@ const FALLBACK_DAYS = [
   },
 ];
 
-// ── generateInterviewReport ───────────────────────────────────────────────────
+// ── generateInterviewReport ─────────────────────────────
 async function generateInterviewReport({
   resume,
   selfDescription,
@@ -474,7 +503,7 @@ async function generateInterviewReportOnce({
   selfDescription,
   jobDescription,
 }) {
-  // ── Prompt: explicit examples prevent Gemini from returning field names as values ──
+  // ── Prompt ──────
   const prompt = `
 You are a senior technical interviewer and career coach at a top tech company (Google, Amazon, Microsoft level).
 Your task is to generate a complete, personalized interview preparation report.
@@ -512,10 +541,47 @@ RULE 4 — EVERY INTENTION MUST BE SPECIFIC
 Each "intention" field must explain specifically what THIS question assesses for THIS role.
 Never use generic phrases as the full intention.
 
-RULE 5 — PREPARATION PLAN MUST HAVE 7 TO 10 DAYS
-The preparationPlan array must contain exactly 7 to 10 objects.
-Each "day" field must be an integer (1, 2, 3...) — NEVER the string "Day 1".
-Each day must have 3-5 specific, actionable tasks.
+RULE 5 — PREPARATION PLAN (MANDATORY)
+
+The preparationPlan array MUST contain EXACTLY 7 objects.
+
+Each object MUST follow this structure:
+
+{
+  "day": 1,
+  "focus": "Specific learning topic",
+  "tasks": [
+    "Task 1",
+    "Task 2",
+    "Task 3"
+  ]
+}
+
+STRICT REQUIREMENTS:
+
+- The "day" field MUST be an INTEGER only.
+- Valid values are: 1,2,3,4,5,6,7
+- NEVER return:
+  "Day 1"
+  "day 1"
+  "DAY 1"
+  "Week 1"
+  "First Day"
+
+- Every day MUST contain:
+  • one unique focus
+  • 3 to 5 practical tasks
+
+- Tasks must be complete sentences describing real interview preparation work.
+
+- Never leave focus or tasks empty.
+
+- Never use placeholder values such as:
+  "focus"
+  "task"
+  "tasks"
+
+The preparation plan must be personalized using BOTH the candidate's resume and the target job description.
 
 RULE 6 — SKILL GAPS MUST BE REAL
 Only list actual gaps between the candidate's profile and the job requirements.
@@ -609,7 +675,7 @@ Return ONLY valid JSON. No markdown, no code fences, no text outside the JSON.
   return interviewReportSchema.parse(parsed);
 }
 
-// ── generatePdfFromHtml ───────────────────────────────────────────────────────
+// ── generatePdfFromHtml ────────────────────
 async function generatePdfFromHtml(htmlContent) {
   console.log("[Puppeteer] Launching Chrome...");
   const browser = await puppeteer.launch({
@@ -640,7 +706,7 @@ async function generatePdfFromHtml(htmlContent) {
   }
 }
 
-// ── generateResumePdf ─────────────────────────────────────────────────────────
+// ── generateResumePdf ──────────────────
 async function generateResumePdf({ resume, selfDescription, jobDescription }) {
   const prompt = `
 You are an expert ATS resume writer. Generate a complete recruiter-ready HTML resume.
